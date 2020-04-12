@@ -10,3 +10,4 @@ pub const BOOL: &str = "bool";
 pub const INT: &str = "int";
 pub const REAL: &str = "real";
 pub const TEXT: &str = "text";
+pub const SYMBOL: &str = "symbol";
