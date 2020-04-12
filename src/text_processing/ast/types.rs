@@ -16,6 +16,8 @@ pub enum DataType {
     Real(f64),
     // text value
     Text(String),
+    // shadow value
+    Symbol,
 }
 
 impl DataType {
@@ -43,7 +45,7 @@ impl DataType {
         T: ToString,
     {
         use super::types::DataType::*;
-        use super::types_annotations::{BOOL, INT, NULL, REAL, TEXT};
+        use super::types_annotations::{BOOL, INT, NULL, REAL, SYMBOL, TEXT};
 
         let raw_value = raw_value.to_string().to_lowercase();
         let raw_type = raw_type.to_string().to_lowercase();
@@ -54,6 +56,7 @@ impl DataType {
             INT => Some(Int(Self::from::<i64>(raw_value)?)),
             REAL => Some(Real(Self::from::<f64>(raw_value)?)),
             TEXT => Some(Text(raw_value)),
+            SYMBOL => Some(Symbol),
             _ => None,
         }
     }
@@ -154,6 +157,10 @@ impl std::fmt::Display for UnaryFuncExpr {
 pub struct BinaryExpr(DataType, DataType, String);
 
 impl BinaryExpr {
+    pub fn new(lterm: DataType, rterm: DataType, operator: String) -> BinaryExpr {
+        BinaryExpr(lterm, rterm, operator)
+    }
+
     fn eq(&self) -> bool {
         self.0 == self.1
     }
@@ -206,8 +213,26 @@ impl Util {
         }
     }
 
-    pub fn identify_type(term: String) {
-         //TODO: Implement
+    // identify type from string value
+    pub fn identify_type(term: &String) -> String {
+        let term = term.chars().collect::<Vec<char>>();
+
+        if term.iter().fold(true, |mut acc, e| acc && (e.is_numeric())) {
+            return "int".to_string();
+        };
+        if term
+            .iter()
+            .fold(true, |mut acc, e| acc && (e.is_numeric() || e == &'.'))
+        {
+            return "real".to_string();
+        };
+
+        match term[..] {
+            ['n', 'u', 'l', 'l'] => "null".to_string(),
+            ['t', 'r', 'u', 'e'] | ['f', 'a', 'l', 's', 'e'] => "bool".to_string(),
+            ['\'', .., '\''] => "text".to_string(),
+            _ => "symbol".to_string(),
+        }
     }
 }
 
@@ -262,6 +287,16 @@ mod test {
             Util::is_single_word("myvar exa23mple text".to_string())
         );
         assert_eq!(false, Util::is_single_word("2123example".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn test_identify_type() -> Result<(), ()> {
+        assert_eq!("null", Util::identify_type(&"null".to_string()));
+        assert_eq!("text", Util::identify_type(&"'my string text'".to_string()));
+        assert_eq!("int", Util::identify_type(&"28".to_string()));
+        assert_eq!("symbol", Util::identify_type(&"my_var".to_string()));
+        assert_eq!("real", Util::identify_type(&"32.0".to_string()));
         Ok(())
     }
 
