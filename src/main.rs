@@ -2,7 +2,6 @@
 extern crate lazy_static;
 #[macro_use]
 extern crate log;
-extern crate regex;
 extern crate simple_logger;
 
 mod environment;
