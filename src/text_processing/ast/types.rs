@@ -1,6 +1,7 @@
 use crate::environment::logger::Logger;
 use crate::text_processing::ast::types::FuncType::{OnCreate, OnDelete, OnRead, OnUpdate};
 use regex::{Match, Regex};
+use std::borrow::Borrow;
 
 #[derive(Debug, PartialEq, PartialOrd)]
 // data types
@@ -17,7 +18,7 @@ pub enum DataType {
     // text value
     Text(String),
     // shadow value
-    Symbol,
+    Symbol(String),
 }
 
 impl DataType {
@@ -40,10 +41,7 @@ impl DataType {
         }
     }
 
-    pub fn from_string<T>(raw_value: T, raw_type: T) -> Option<DataType>
-    where
-        T: ToString,
-    {
+    pub fn from_string<T: ToString>(raw_value: T, raw_type: T) -> Option<DataType> {
         use super::types::DataType::*;
         use super::types_annotations::{BOOL, INT, NULL, REAL, SYMBOL, TEXT};
 
@@ -56,7 +54,23 @@ impl DataType {
             INT => Some(Int(Self::from::<i64>(raw_value)?)),
             REAL => Some(Real(Self::from::<f64>(raw_value)?)),
             TEXT => Some(Text(raw_value)),
-            SYMBOL => Some(Symbol),
+            SYMBOL => Some(Symbol(raw_value)),
+            _ => None,
+        }
+    }
+
+    pub fn from_type_default_value<T: ToString>(raw_type: T) -> Option<DataType> {
+        use super::types::DataType::*;
+        use super::types_annotations::{BOOL, INT, NULL, REAL, TEXT};
+
+        let raw_type = raw_type.to_string().to_lowercase();
+
+        match raw_type.as_str() {
+            NULL => Some(Null),
+            BOOL => Some(Bool(false)),
+            INT => Some(Int(0)),
+            REAL => Some(Real(0.0)),
+            TEXT => Some(Text("".to_string())),
             _ => None,
         }
     }
@@ -121,7 +135,7 @@ impl FuncType {
 // example: Expr equal to onCreate(a : int, b : bool)
 pub struct UnaryFuncExpr {
     func_type: FuncType,
-    channel_names: Vec<String>,
+    channel_names: Vec<DataType>,
     binary_exprs: Option<Vec<BinaryExpr>>,
     vars: Option<Vec<DataVar>>,
 }
@@ -129,7 +143,7 @@ pub struct UnaryFuncExpr {
 impl UnaryFuncExpr {
     pub fn new(
         func_type: FuncType,
-        channel_names: Vec<String>,
+        channel_names: Vec<DataType>,
         binary_exprs: Option<Vec<BinaryExpr>>,
         vars: Option<Vec<DataVar>>,
     ) -> UnaryFuncExpr {
@@ -138,6 +152,42 @@ impl UnaryFuncExpr {
             channel_names,
             binary_exprs,
             vars,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ArgumentGroup {
+    FuncGroup(String),
+    ChannelsGroup(String),
+    ExpressionsGroup(String),
+    StatementsGroup(String),
+    Other(String),
+    None
+}
+
+impl ArgumentGroup {
+    pub fn from_string(val: &String) -> ArgumentGroup {
+        use crate::text_processing::ast::types_annotations::{
+            ONCREATE, ONDELETE, ONREAD, ONUPDATE,
+        };
+        let val = val.to_lowercase();
+        let val = val.as_str();
+        if val == ONCREATE || val == ONREAD || val == ONUPDATE || val == ONDELETE {
+            return ArgumentGroup::FuncGroup(val.to_string());
+        }
+        ArgumentGroup::Other(val.to_string())
+    }
+}
+
+impl ToString for ArgumentGroup {
+    fn to_string(&self) -> String {
+        use crate::text_processing::ast::types::ArgumentGroup::{FuncGroup, Other};
+
+        match self {
+            FuncGroup(val) => val.to_owned(),
+            Other(val) => val.to_owned(),
+            _ => ()
         }
     }
 }
@@ -239,9 +289,7 @@ impl Util {
 #[cfg(test)]
 // test module
 mod test {
-    use crate::text_processing::ast::types::{
-        BinaryExpr, DataType, DataVar, FuncType, UnaryFuncExpr, Util,
-    };
+    use crate::text_processing::ast::types::{BinaryExpr, DataType, Util};
 
     #[test]
     fn test_data_type_from_string() -> Result<(), ()> {
