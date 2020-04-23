@@ -1,9 +1,11 @@
 extern crate regex;
 use crate::environment::logger::Logger;
+use crate::text_processing::ast::types::ArgumentGroup::FuncGroup;
 use crate::text_processing::ast::types::{
     ArgumentGroup, BinaryExpr, DataType, DataVar, FuncType, UnaryFuncExpr, Util,
 };
 use std::borrow::Borrow;
+use std::collections::{LinkedList, VecDeque};
 use std::iter::FromIterator;
 use std::str::from_utf8;
 
@@ -15,7 +17,7 @@ pub struct Rule;
 
 impl Rule {
     // helping to split line on string group for next processing
-    pub fn split_on_raw_group<T: Into<String>>(line: T) -> Vec<String> {
+    fn split_on_raw_group<T: Into<String>>(line: T) -> Vec<String> {
         let mut line: String = line.into();
         let mut capture_mode: bool = true;
         line.retain(|e: char| {
@@ -122,15 +124,19 @@ impl Rule {
         }
     }
 
-    pub fn get_argument_groups<T: IntoIterator<Item = String>>(
-        collection: T,
-    ) //-> Vec<ArgumentGroup>
-    {
-        // TODO: continue
-        /*let accum : Vec<Vec<ArgumentGroup>> = vec![vec![]];
+    pub fn get_argument_groups<T: Into<String>>(line: T) -> Vec<ArgumentGroup> {
+        let collection = Rule::split_on_raw_group(line);
+
         collection
-            .into_iter()
-            .fold(Vec::new(Vec<ArgumentGroup>),|e|{})*/
+            .iter()
+            .map(|e| ArgumentGroup::from_string(e))
+            .fold(vec![], |mut acc, e| {
+                if matches!(e, ArgumentGroup::FuncGroup(ref x)) {
+                    acc.push(ArgumentGroup::None);
+                }
+                acc.push(e);
+                acc
+            })
     }
 
     pub fn get_func_type<T: ToString>(val: T) -> Option<FuncType> {
@@ -177,8 +183,9 @@ impl Rule {
 
 trait Parser {
     fn from_unary_func_expr<T: Into<String>>(line: T) {
-        let a = Rule::split_on_raw_group("onupdate(my_channel)(a >= 2)(a : int);onupdate");
-        Rule::get_argument_groups(a).iter().enumerate().filter_map();
+        let argument_groups = Rule::get_argument_groups(line);
+        let b : Vec<&[ArgumentGroup]> = argument_groups.split(ArgumentGroup::None).into();
+        println!("{:?}",b)
     }
 }
 
@@ -190,7 +197,7 @@ mod test {
 
     #[test]
     fn test_from_unary_func_expr() -> Result<(), ()> {
-        let a = ParserDefault::from_unary_func_expr("onUpdate(my_channel)(a<=2)(b : real = 44.0)");
+        ParserDefault::from_unary_func_expr("onupdate(my_channel)(a >= 2)(a : int);onupdate(a : int);onupdate(my_channel)(a >= 2)(a : int);");
         Ok(())
     }
 }

@@ -156,14 +156,14 @@ impl UnaryFuncExpr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq)]
 pub enum ArgumentGroup {
     FuncGroup(String),
     ChannelsGroup(String),
     ExpressionsGroup(String),
     StatementsGroup(String),
     Other(String),
-    None
+    None,
 }
 
 impl ArgumentGroup {
@@ -187,7 +187,7 @@ impl ToString for ArgumentGroup {
         match self {
             FuncGroup(val) => val.to_owned(),
             Other(val) => val.to_owned(),
-            _ => ()
+            _ => "".to_owned(),
         }
     }
 }
