@@ -1,4 +1,5 @@
 use crate::environment::logger::Logger;
+use crate::text_processing::ast::types::ArgumentGroup::OtherGroup;
 use crate::text_processing::ast::types::FuncType::{OnCreate, OnDelete, OnRead, OnUpdate};
 use regex::{Match, Regex};
 use std::borrow::Borrow;
@@ -159,10 +160,11 @@ impl UnaryFuncExpr {
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum ArgumentGroup {
     FuncGroup(String),
-    ChannelsGroup(String),
-    ExpressionsGroup(String),
-    StatementsGroup(String),
-    Other(String),
+    /* unused: */
+    //ChannelsGroup(String),
+    //ExpressionsGroup(String),
+    //StatementsGroup(String),
+    OtherGroup(String),
     None,
 }
 
@@ -173,20 +175,20 @@ impl ArgumentGroup {
         };
         let val = val.to_lowercase();
         let val = val.as_str();
-        if val == ONCREATE || val == ONREAD || val == ONUPDATE || val == ONDELETE {
-            return ArgumentGroup::FuncGroup(val.to_string());
+        match val {
+            ONCREATE | ONREAD | ONUPDATE | ONDELETE => ArgumentGroup::FuncGroup(val.to_string()),
+            _ => ArgumentGroup::OtherGroup(val.to_string()),
         }
-        ArgumentGroup::Other(val.to_string())
     }
 }
 
 impl ToString for ArgumentGroup {
     fn to_string(&self) -> String {
-        use crate::text_processing::ast::types::ArgumentGroup::{FuncGroup, Other};
+        use crate::text_processing::ast::types::ArgumentGroup::{FuncGroup, OtherGroup};
 
         match self {
             FuncGroup(val) => val.to_owned(),
-            Other(val) => val.to_owned(),
+            OtherGroup(val) => val.to_owned(),
             _ => "".to_owned(),
         }
     }
@@ -247,7 +249,7 @@ impl BinaryExpr {
 pub struct Util;
 
 impl Util {
-    // detect one word in string
+    // detect one word in string todo: remake this, because regex it's not good idea for this function
     pub fn is_single_word(var_name: String) -> bool {
         lazy_static! {
             static ref RE: Regex = Regex::new(r"(\b[A-Za-z_][A-Za-z0-9_]*\b)").unwrap();
