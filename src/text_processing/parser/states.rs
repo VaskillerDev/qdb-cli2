@@ -96,7 +96,7 @@ impl Rule {
         }
         binary_expression
     }
-
+    // help to split string value to data var todo: rewrite function to type safety DataVar -> Option<DataVar>
     fn split_statement(raw_statement: &str) -> DataVar {
         let val: Vec<&str> = raw_statement.splitn(2, ":").collect();
         let type_and_value: Vec<&str> = val[1].split("=").collect();
@@ -116,7 +116,7 @@ impl Rule {
             let data_type = DataType::from_type_default_value(raw_type).expect(
                 format!(
                     "DataType creation has been failed at {}.\n value: {} type: {}",
-                    symbol, type_and_value[0], type_and_value[1]
+                    symbol, type_and_value[0], type_and_value[0]
                 )
                 .as_str(),
             );
@@ -166,16 +166,22 @@ impl Rule {
         }
     }
 
-    pub fn get_expressions<T: ToString>(val: T) -> Vec<BinaryExpr> {
+    pub fn get_expressions<T: ToString>(val: T) -> Option<Vec<BinaryExpr>> {
         let val: String = val.to_string();
-        val.split(',')
-            .map(|e| {
-                Rule::split_expression(e).expect(format!("Expression error in: {:?}", e).as_str())
-            })
-            .collect()
+        if val.is_empty() {
+            return None;
+        }
+        Some(
+            val.split(',')
+                .map(|e| {
+                    Rule::split_expression(e)
+                        .expect(format!("Expression error in: {:?}", e).as_str())
+                })
+                .collect(),
+        )
     }
 
-    pub fn get_statements<T: ToString>(val: T) -> Vec<DataVar> {
+    pub fn get_statements<T: ToString>(val: T) -> Option<Vec<DataVar>> {
         let val: String = val.to_string();
         val.split(',').map(Rule::split_statement).collect()
     }
@@ -183,10 +189,45 @@ impl Rule {
 
 trait Parser {
     fn from_unary_func_expr<T: Into<String>>(line: T) {
-        let argument_groups = Rule::get_argument_groups(line);
-        //let b : Vec<&[ArgumentGroup]> = argument_groups.split(ArgumentGroup::None).into();
-        //todo: continue
-        println!("{:?}",b)
+        let argument_super_group = Rule::get_argument_groups(line);
+        let argument_groups: Vec<&[ArgumentGroup]> = argument_super_group
+            .split(|e| matches!(e, ArgumentGroup::None))
+            .filter(|e| !e.is_empty())
+            .collect();
+
+        for argument_subgroups in argument_groups {
+            let func_type = Rule::get_func_type(&argument_subgroups[0].to_string())
+                .expect("function type not found");
+            match func_type {
+                FuncType::OnCreate => {
+                    // todo: rewrite because type not compatible (look get_expression signature)
+                  /*  let channels = Rule::get_channels(&argument_subgroups[1].to_string())
+                        .expect("channels not found");
+                    let statements = Rule::get_statements(&argument_subgroups[2].to_string());
+                    let unary_func_expr =
+                        UnaryFuncExpr::new(func_type, channels, None, Some(statements));*/
+                }
+                FuncType::OnRead => {
+                    let channels = argument_subgroups
+                        .get(1)
+                        .expect("channel not found")
+                        .to_string();
+                    let expressions = argument_subgroups
+                        .get(2)
+                        .unwrap_or(&ArgumentGroup::OtherGroup("".to_string()))
+                        .to_string();
+                    let channels = Rule::get_channels(channels).expect("channels parsing error");
+                    let expressions = Rule::get_expressions(expressions);
+
+                   let g = UnaryFuncExpr::new(func_type, channels, expressions, None);
+                    println!("{:?}",g)
+                }
+                FuncType::OnUpdate => println!("onupdate"),
+                FuncType::OnDelete => println!("ondelete"),
+            }
+        }
+
+        //println!("{:?}", argument_groups)
     }
 }
 
@@ -198,7 +239,7 @@ mod test {
 
     #[test]
     fn test_from_unary_func_expr() -> Result<(), ()> {
-        ParserDefault::from_unary_func_expr("onupdate(my_channel)(a >= 2)(a : int);onupdate(a : int);onupdate(my_channel)(a >= 2)(a : int);");
+        ParserDefault::from_unary_func_expr("onread(a>=2)\nonread(a==2)");
         Ok(())
     }
 }
