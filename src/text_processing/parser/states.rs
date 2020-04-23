@@ -201,7 +201,7 @@ trait Parser {
             match func_type {
                 FuncType::OnCreate => {
                     // todo: rewrite because type not compatible (look get_expression signature)
-                  /*  let channels = Rule::get_channels(&argument_subgroups[1].to_string())
+                    /*  let channels = Rule::get_channels(&argument_subgroups[1].to_string())
                         .expect("channels not found");
                     let statements = Rule::get_statements(&argument_subgroups[2].to_string());
                     let unary_func_expr =
@@ -219,8 +219,8 @@ trait Parser {
                     let channels = Rule::get_channels(channels).expect("channels parsing error");
                     let expressions = Rule::get_expressions(expressions);
 
-                   let g = UnaryFuncExpr::new(func_type, channels, expressions, None);
-                    println!("{:?}",g)
+                    let g = UnaryFuncExpr::new(func_type, channels, expressions, None);
+                    println!("{:?}", g)
                 }
                 FuncType::OnUpdate => println!("onupdate"),
                 FuncType::OnDelete => println!("ondelete"),
