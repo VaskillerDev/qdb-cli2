@@ -253,7 +253,7 @@ trait Parser {
                         .to_string();
                     let statements = Rule::get_statements(statements);
                     let unary_func_expr = UnaryFuncExpr::new(func_type, channels, None, statements);
-                    println!("{:?}",unary_func_expr)
+                    println!("{:?}", unary_func_expr)
                 }
                 FuncType::OnRead => {
                     // func_type : Y, channels: Y, expressions: Y, statements: N
@@ -278,14 +278,15 @@ trait Parser {
                         .unwrap_or(&ArgumentGroup::OtherGroup("".to_string()))
                         .to_string();
                     let statements = Rule::get_statements(statements);
-                    let unary_func_expr = UnaryFuncExpr::new(func_type, channels, expressions, statements);
+                    let unary_func_expr =
+                        UnaryFuncExpr::new(func_type, channels, expressions, statements);
                     println!("{:?}", unary_func_expr)
-                },
+                }
                 FuncType::OnDelete => {
                     // func_type : Y, channels: Y, expressions: N, statements: N
                     let unary_func_expr = UnaryFuncExpr::new(func_type, channels, None, None);
                     println!("{:?}", unary_func_expr)
-                },
+                }
             }
         }
 
