@@ -96,13 +96,43 @@ impl Rule {
         }
         binary_expression
     }
-    // help to split string value to data var todo: rewrite function to type safety DataVar -> Option<DataVar>
-    fn split_statement(raw_statement: &str) -> DataVar {
+    // help to split string value to data var
+    fn split_statement(raw_statement: &str) -> Option<DataVar> {
         let val: Vec<&str> = raw_statement.splitn(2, ":").collect();
         let type_and_value: Vec<&str> = val[1].split("=").collect();
 
-        if type_and_value.len() == 2 {
-            let (symbol, raw_type, value) = (val[0], type_and_value[0], type_and_value[1]);
+        let symbol = val.get(0);
+        let raw_type = type_and_value.get(0);
+        let value = type_and_value.get(1);
+
+        if symbol.is_some() && raw_type.is_some() && value.is_some() {
+            let (symbol, raw_type, value) = (symbol.unwrap(), raw_type.unwrap(), value.unwrap());
+            let data_type = DataType::from_string(value, raw_type).expect(
+                format!(
+                    "DataType creation has been failed at {}.\n  value: {} type: {}",
+                    symbol,
+                    type_and_value.get(0).unwrap(),
+                    type_and_value.get(1).unwrap()
+                )
+                .as_str(),
+            );
+            return Some(DataVar::new(symbol.to_string(), data_type));
+        }
+
+        if symbol.is_some() && raw_type.is_some() {
+            let (symbol, raw_type) = (symbol.unwrap(), raw_type.unwrap());
+            let data_type = DataType::from_type_default_value(raw_type).expect(
+                format!(
+                    "DataType creation has been failed at {}.\n value: {} type: {}",
+                    symbol, type_and_value[0], type_and_value[0]
+                )
+                .as_str(),
+            );
+            return Some(DataVar::new(symbol.to_string(), data_type));
+        };
+
+        /* if type_and_value.len() == 2 {
+
             let data_type = DataType::from_string(value, raw_type).expect(
                 format!(
                     "DataType creation has been failed at {}.\n  value: {} type: {}",
@@ -121,7 +151,8 @@ impl Rule {
                 .as_str(),
             );
             DataVar::new(symbol.to_string(), data_type)
-        }
+        }*/
+        None
     }
 
     pub fn get_argument_groups<T: Into<String>>(line: T) -> Vec<ArgumentGroup> {
@@ -183,7 +214,16 @@ impl Rule {
 
     pub fn get_statements<T: ToString>(val: T) -> Option<Vec<DataVar>> {
         let val: String = val.to_string();
-        val.split(',').map(Rule::split_statement).collect()
+        if val.is_empty() {
+            return None;
+        }
+        Some(
+            val.split(',')
+                .map(|e| {
+                    Rule::split_statement(e).expect(format!("Statement error in: {:?}", e).as_str())
+                })
+                .collect(),
+        )
     }
 }
 
@@ -198,32 +238,54 @@ trait Parser {
         for argument_subgroups in argument_groups {
             let func_type = Rule::get_func_type(&argument_subgroups[0].to_string())
                 .expect("function type not found");
+            let channels = argument_subgroups
+                .get(1)
+                .expect("channel not found")
+                .to_string();
+            let channels = Rule::get_channels(channels).expect("channels parsing error");
+
             match func_type {
                 FuncType::OnCreate => {
-                    // todo: rewrite because type not compatible (look get_expression signature)
-                    /*  let channels = Rule::get_channels(&argument_subgroups[1].to_string())
-                        .expect("channels not found");
-                    let statements = Rule::get_statements(&argument_subgroups[2].to_string());
-                    let unary_func_expr =
-                        UnaryFuncExpr::new(func_type, channels, None, Some(statements));*/
+                    // func_type : Y, channels: Y, expressions: N, statements: Y
+                    let statements = argument_subgroups
+                        .get(2)
+                        .unwrap_or(&ArgumentGroup::OtherGroup("".to_string()))
+                        .to_string();
+                    let statements = Rule::get_statements(statements);
+                    let unary_func_expr = UnaryFuncExpr::new(func_type, channels, None, statements);
+                    println!("{:?}",unary_func_expr)
                 }
                 FuncType::OnRead => {
-                    let channels = argument_subgroups
-                        .get(1)
-                        .expect("channel not found")
-                        .to_string();
+                    // func_type : Y, channels: Y, expressions: Y, statements: N
                     let expressions = argument_subgroups
                         .get(2)
                         .unwrap_or(&ArgumentGroup::OtherGroup("".to_string()))
                         .to_string();
-                    let channels = Rule::get_channels(channels).expect("channels parsing error");
                     let expressions = Rule::get_expressions(expressions);
-
-                    let g = UnaryFuncExpr::new(func_type, channels, expressions, None);
-                    println!("{:?}", g)
+                    let unary_func_expr =
+                        UnaryFuncExpr::new(func_type, channels, expressions, None);
+                    println!("{:?}", unary_func_expr)
                 }
-                FuncType::OnUpdate => println!("onupdate"),
-                FuncType::OnDelete => println!("ondelete"),
+                FuncType::OnUpdate => {
+                    // func_type : Y, channels: Y, expressions: Y, statements: Y
+                    let expressions = argument_subgroups
+                        .get(2)
+                        .unwrap_or(&ArgumentGroup::OtherGroup("".to_string()))
+                        .to_string();
+                    let expressions = Rule::get_expressions(expressions);
+                    let statements = argument_subgroups
+                        .get(3)
+                        .unwrap_or(&ArgumentGroup::OtherGroup("".to_string()))
+                        .to_string();
+                    let statements = Rule::get_statements(statements);
+                    let unary_func_expr = UnaryFuncExpr::new(func_type, channels, expressions, statements);
+                    println!("{:?}", unary_func_expr)
+                },
+                FuncType::OnDelete => {
+                    // func_type : Y, channels: Y, expressions: N, statements: N
+                    let unary_func_expr = UnaryFuncExpr::new(func_type, channels, None, None);
+                    println!("{:?}", unary_func_expr)
+                },
             }
         }
 
@@ -235,11 +297,11 @@ struct ParserDefault;
 impl Parser for ParserDefault {}
 
 mod test {
-    use crate::text_processing::parser::states::{Parser, ParserDefault};
+    use crate::text_processing::parser::states::{Parser, ParserDefault, Rule};
 
     #[test]
     fn test_from_unary_func_expr() -> Result<(), ()> {
-        ParserDefault::from_unary_func_expr("onread(a>=2)\nonread(a==2)");
+        ParserDefault::from_unary_func_expr("onupdate(a>=2)\noncreate(mychannel)(a:int)");
         Ok(())
     }
 }
