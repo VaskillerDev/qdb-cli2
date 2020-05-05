@@ -3,6 +3,7 @@ extern crate lazy_static;
 #[macro_use]
 extern crate log;
 extern crate simple_logger;
+extern crate qdb_ast;
 
 mod environment;
 mod text_processing;
@@ -11,5 +12,4 @@ mod text_processing;
 
 fn main() {
     simple_logger::init();
-    //m();
 }

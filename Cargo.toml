@@ -6,8 +6,12 @@ edition = "2018"
 
 [dependencies]
 clap = "2.33.0"
-serde = "1.0.104"
 regex = "1.3.5"
 lazy_static = "1.4.0"
 simple_logger = "1.6.0"
 log = "0.4.8"
+qdb-ast = {git = "https://github.com/VaskillerDev/qdb-ast.git", branch = "master"}
+
+[profile.release]
+opt-level = 'z'
+lto = true
