@@ -1,12 +1,7 @@
-extern crate regex;
 use crate::environment::logger::Logger;
-use crate::text_processing::ast::types::ArgumentGroup::FuncGroup;
 use crate::text_processing::ast::types::{
     ArgumentGroup, BinaryExpr, DataType, DataVar, FuncType, UnaryFuncExpr, Util,
 };
-use std::borrow::Borrow;
-use std::collections::{LinkedList, VecDeque};
-use std::iter::FromIterator;
 use std::str::from_utf8;
 
 // rule for parse  DSL-line from string
@@ -131,27 +126,6 @@ impl Rule {
             return Some(DataVar::new(symbol.to_string(), data_type));
         };
 
-        /* if type_and_value.len() == 2 {
-
-            let data_type = DataType::from_string(value, raw_type).expect(
-                format!(
-                    "DataType creation has been failed at {}.\n  value: {} type: {}",
-                    symbol, type_and_value[0], type_and_value[1]
-                )
-                .as_str(),
-            );
-            DataVar::new(symbol.to_string(), data_type)
-        } else {
-            let (symbol, raw_type) = (val[0], type_and_value[0]);
-            let data_type = DataType::from_type_default_value(raw_type).expect(
-                format!(
-                    "DataType creation has been failed at {}.\n value: {} type: {}",
-                    symbol, type_and_value[0], type_and_value[0]
-                )
-                .as_str(),
-            );
-            DataVar::new(symbol.to_string(), data_type)
-        }*/
         None
     }
 
@@ -162,7 +136,7 @@ impl Rule {
             .iter()
             .map(|e| ArgumentGroup::from_string(e))
             .fold(vec![], |mut acc, e| {
-                if matches!(e, ArgumentGroup::FuncGroup(ref x)) {
+                if matches!(e, ArgumentGroup::FuncGroup(ref _x)) {
                     acc.push(ArgumentGroup::None);
                 }
                 acc.push(e);
@@ -184,7 +158,7 @@ impl Rule {
             .collect();
 
         let imbalance = types.iter().find(|e| match e {
-            DataType::Symbol(ref val) => false,
+            DataType::Symbol(ref _val) => false,
             _ => true,
         });
         if imbalance.is_none() {
@@ -228,12 +202,13 @@ impl Rule {
 }
 
 trait Parser {
-    fn from_unary_func_expr<T: Into<String>>(line: T) {
+    fn from_unary_func_expr<T: Into<String>>(line: T) -> Option<Vec<UnaryFuncExpr>> {
         let argument_super_group = Rule::get_argument_groups(line);
         let argument_groups: Vec<&[ArgumentGroup]> = argument_super_group
             .split(|e| matches!(e, ArgumentGroup::None))
             .filter(|e| !e.is_empty())
             .collect();
+        let mut unary_func_expressions: Vec<UnaryFuncExpr> = vec![];
 
         for argument_subgroups in argument_groups {
             let func_type = Rule::get_func_type(&argument_subgroups[0].to_string())
@@ -253,7 +228,7 @@ trait Parser {
                         .to_string();
                     let statements = Rule::get_statements(statements);
                     let unary_func_expr = UnaryFuncExpr::new(func_type, channels, None, statements);
-                    println!("{:?}", unary_func_expr)
+                    unary_func_expressions.push(unary_func_expr);
                 }
                 FuncType::OnRead => {
                     // func_type : Y, channels: Y, expressions: Y, statements: N
@@ -264,7 +239,7 @@ trait Parser {
                     let expressions = Rule::get_expressions(expressions);
                     let unary_func_expr =
                         UnaryFuncExpr::new(func_type, channels, expressions, None);
-                    println!("{:?}", unary_func_expr)
+                    unary_func_expressions.push(unary_func_expr);
                 }
                 FuncType::OnUpdate => {
                     // func_type : Y, channels: Y, expressions: Y, statements: Y
@@ -280,29 +255,109 @@ trait Parser {
                     let statements = Rule::get_statements(statements);
                     let unary_func_expr =
                         UnaryFuncExpr::new(func_type, channels, expressions, statements);
-                    println!("{:?}", unary_func_expr)
+                    unary_func_expressions.push(unary_func_expr);
                 }
                 FuncType::OnDelete => {
                     // func_type : Y, channels: Y, expressions: N, statements: N
                     let unary_func_expr = UnaryFuncExpr::new(func_type, channels, None, None);
-                    println!("{:?}", unary_func_expr)
+                    unary_func_expressions.push(unary_func_expr);
                 }
             }
         }
-
-        //println!("{:?}", argument_groups)
+        if !unary_func_expressions.is_empty() {
+            return Some(unary_func_expressions);
+        }
+        None
     }
 }
 
 struct ParserDefault;
+impl ParserDefault {
+    pub fn from_unary_func_expr_callback<
+        T: Into<String>,
+        F: FnOnce(Vec<UnaryFuncExpr>) -> Vec<UnaryFuncExpr>,
+    >(
+        line: T,
+        closure: F,
+    ) -> Vec<UnaryFuncExpr> {
+        let line: String = line.into();
+        let result: Vec<UnaryFuncExpr> =
+            ParserDefault::from_unary_func_expr::<String>(line).expect("parser error");
+        closure(result)
+    }
+}
 impl Parser for ParserDefault {}
 
 mod test {
-    use crate::text_processing::parser::states::{Parser, ParserDefault, Rule};
+    use crate::text_processing::parser::states::{Rule, ParserDefault};
+    // todo: add more tests
 
     #[test]
+    fn test_split_on_raw_group() -> Result<(), ()> {
+        let result = Rule::split_on_raw_group("onCreate(my_channel)(a: int,b : text)");
+        let test_vec = vec![
+            "onCreate".to_string(),
+            "my_channel".to_string(),
+            "a:int,b:text".to_string(),
+        ];
+        assert_eq!(result, test_vec);
+        let result = Rule::split_on_raw_group("onUpdate(my_channel)(a >= 2)(a : int, b : text)");
+        let test_vec = vec![
+            "onUpdate".to_string(),
+            "my_channel".to_string(),
+            "a>=2".to_string(),
+            "a:int,b:text".to_string(),
+        ];
+        assert_eq!(result, test_vec);
+        Ok(())
+    }
+
+    #[test]
+    // proof of concept
     fn test_from_unary_func_expr() -> Result<(), ()> {
-        ParserDefault::from_unary_func_expr("onupdate(a>=2)\noncreate(mychannel)(a:int)");
+        use crate::text_processing::ast::types::DataType::Symbol;
+        use crate::text_processing::ast::types::{BinaryExpr, DataType, FuncType, UnaryFuncExpr};
+        use crate::text_processing::parser::states::{Parser, ParserDefault, Rule};
+        assert_eq!(
+            true,
+            matches!(ParserDefault::from_unary_func_expr(" "), None)
+        );
+        assert_eq!(
+            true,
+            matches!(ParserDefault::from_unary_func_expr(""), None)
+        );
+        let unary_func_expressions =
+            ParserDefault::from_unary_func_expr("onRead(vector)(x>=2);").unwrap();
+        let unary_func_expression = unary_func_expressions.get(0).unwrap();
+        let func_type = unary_func_expression.get_func_type();
+        assert_eq!(true, matches!(FuncType::OnRead, func_type));
+        let channels = unary_func_expression.get_channel_names();
+        assert_eq!(
+            true,
+            matches!(DataType::Symbol("vector".to_string()), channels)
+        );
+        let exprs = unary_func_expression.get_binary_exprs().as_ref().unwrap();
+        assert_eq!(
+            true,
+            matches!(
+                [BinaryExpr::new(
+                    Symbol("x".to_string()),
+                    DataType::Int(2),
+                    ">=".to_string()
+                )],
+                exprs
+            )
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_from_unary_func_expr_callback() -> Result<(),()> {
+       let a = ParserDefault::from_unary_func_expr_callback("onUpdate(my_channel)(x>=2)(a:int,b:real)",|elem|{
+            println!("{:?}",elem);
+            elem
+        });
         Ok(())
     }
 }
