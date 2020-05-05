@@ -1,8 +1,6 @@
 use crate::environment::logger::Logger;
-use crate::text_processing::ast::types::ArgumentGroup::OtherGroup;
 use crate::text_processing::ast::types::FuncType::{OnCreate, OnDelete, OnRead, OnUpdate};
 use regex::{Match, Regex};
-use std::borrow::Borrow;
 
 #[derive(Debug, PartialEq, PartialOrd)]
 // data types
@@ -30,7 +28,7 @@ impl DataType {
         let result: Result<T, T::Err> = raw_value.parse::<T>();
         match result {
             Ok(v) => Some(v),
-            Err(e) => {
+            Err(_e) => {
                 let mes = format!(
                     "Type converted for value {} as {} is not correctly.",
                     raw_value,
@@ -94,7 +92,7 @@ impl std::fmt::Display for DataVar {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 // function types, it's can use for Expr struct
 // example: onCreate
 pub enum FuncType {
@@ -155,6 +153,18 @@ impl UnaryFuncExpr {
             vars,
         }
     }
+    pub fn get_func_type(&self) -> &FuncType {
+        &self.func_type
+    }
+    pub fn get_channel_names(&self) -> &Vec<DataType> {
+        &self.channel_names
+    }
+    pub fn get_binary_exprs(&self) -> &Option<Vec<BinaryExpr>> {
+        &self.binary_exprs
+    }
+    pub fn get_vars(&self) -> &Option<Vec<DataVar>> {
+        &self.vars
+    }
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
@@ -199,8 +209,7 @@ impl std::fmt::Display for UnaryFuncExpr {
         write!(f, "function type: {:?}", &self.func_type);
         write!(f, "channel names: {:?}", &self.channel_names);
         write!(f, "binary expressions: {:?}", &self.binary_exprs);
-        write!(f, "vars: {:?}", &self.vars);
-        Ok(())
+        write!(f, "vars: {:?}", &self.vars)
     }
 }
 
@@ -231,6 +240,7 @@ impl BinaryExpr {
     fn lt(&self) -> bool {
         self.0 < self.1
     }
+    // todo: add AND and OR operators
 
     pub fn compare(&self) -> Option<bool> {
         match self.2.as_str() {
@@ -267,23 +277,25 @@ impl Util {
 
     // identify type from string value
     pub fn identify_type(term: &String) -> String {
+        use crate::text_processing::ast::types_annotations::{BOOL, INT, NULL, REAL, SYMBOL, TEXT};
+
         let term = term.chars().collect::<Vec<char>>();
 
-        if term.iter().fold(true, |mut acc, e| acc && (e.is_numeric())) {
-            return "int".to_string();
+        if term.iter().fold(true, |acc, e| acc && (e.is_numeric())) {
+            return INT.to_string();
         };
         if term
             .iter()
-            .fold(true, |mut acc, e| acc && (e.is_numeric() || e == &'.'))
+            .fold(true, |acc, e| acc && (e.is_numeric() || e == &'.'))
         {
-            return "real".to_string();
+            return REAL.to_string();
         };
 
         match term[..] {
-            ['n', 'u', 'l', 'l'] => "null".to_string(),
-            ['t', 'r', 'u', 'e'] | ['f', 'a', 'l', 's', 'e'] => "bool".to_string(),
-            ['\'', .., '\''] => "text".to_string(),
-            _ => "symbol".to_string(),
+            ['n', 'u', 'l', 'l'] => NULL.to_string(),
+            ['t', 'r', 'u', 'e'] | ['f', 'a', 'l', 's', 'e'] => BOOL.to_string(),
+            ['\'', .., '\''] => TEXT.to_string(),
+            _ => SYMBOL.to_string(),
         }
     }
 }
