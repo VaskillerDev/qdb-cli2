@@ -1,7 +1,7 @@
 extern crate clap;
 use clap::*;
 
-fn build_clap_app() -> ArgMatches<'static> {
+pub fn build_clap_app() -> ArgMatches<'static> {
     /* APP INFO */
     // App info
     let app = App::new("qdb-cli")
@@ -28,7 +28,16 @@ fn build_clap_app() -> ArgMatches<'static> {
         .value_name("URI")
         .default_value("localhost:6060");
 
-    app.arg(debug).arg(uri).get_matches()
+    // Execute / run mode
+    let exec = Arg::with_name("run")
+        .short("R")
+        .long("run")
+        .help("(bool) Run DSL-command. \n Example: qdb --run")
+        .takes_value(true)
+        .value_name("BOOL")
+        .default_value("false");
+
+    app.arg(debug).arg(uri).arg(exec).get_matches()
 }
 
 lazy_static! {
